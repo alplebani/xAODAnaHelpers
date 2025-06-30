@@ -151,6 +151,7 @@ EL::StatusCode ElectronSelector :: initialize ()
     m_el_cutflow_all             = m_el_cutflowHist_1->GetXaxis()->FindBin("all");
     m_el_cutflow_author_cut      = m_el_cutflowHist_1->GetXaxis()->FindBin("author_cut");
     m_el_cutflow_OQ_cut          = m_el_cutflowHist_1->GetXaxis()->FindBin("OQ_cut");
+    m_el_cutflow_deadHVCell_cut  = m_el_cutflowHist_1->GetXaxis()->FindBin("deadHVCell_cut");
     m_el_cutflow_ptmax_cut       = m_el_cutflowHist_1->GetXaxis()->FindBin("ptmax_cut");
     m_el_cutflow_ptmin_cut       = m_el_cutflowHist_1->GetXaxis()->FindBin("ptmin_cut");
     m_el_cutflow_eta_cut         = m_el_cutflowHist_1->GetXaxis()->FindBin("eta_cut"); // including crack veto, if applied
@@ -167,6 +168,7 @@ EL::StatusCode ElectronSelector :: initialize ()
       m_el_cutflow_all       = m_el_cutflowHist_2->GetXaxis()->FindBin("all");
       m_el_cutflow_author_cut    = m_el_cutflowHist_2->GetXaxis()->FindBin("author_cut");
       m_el_cutflow_OQ_cut    = m_el_cutflowHist_2->GetXaxis()->FindBin("OQ_cut");
+      m_el_cutflow_deadHVCell_cut  = m_el_cutflowHist_2->GetXaxis()->FindBin("deadHVCell_cut");
       m_el_cutflow_ptmax_cut     = m_el_cutflowHist_2->GetXaxis()->FindBin("ptmax_cut");
       m_el_cutflow_ptmin_cut     = m_el_cutflowHist_2->GetXaxis()->FindBin("ptmin_cut");
       m_el_cutflow_eta_cut     = m_el_cutflowHist_2->GetXaxis()->FindBin("eta_cut"); // including crack veto, if applied
@@ -401,6 +403,20 @@ EL::StatusCode ElectronSelector :: initialize ()
 
   // **********************************************************************************************
 
+
+  // Set up the dead HV Removal Tool
+  if (m_applyDeadHVCellVeto) {
+    m_deadHVTool.setTypeAndName("AsgDeadHVCellRemovalTool/deadHVTool");
+    if (m_deadHVTool.retrieve().isFailure()){
+      ANA_MSG_ERROR("Failed to retrieve DeadHVTool, aborting");
+      return StatusCode::FAILURE;
+    }
+  }
+  else {
+      ANA_MSG_WARNING("Not applying veto of dead HV cells on electrons although it's recommended - please double check!");
+  }
+
+
   ANA_MSG_INFO( "ElectronSelector Interface succesfully initialized!" );
 
   return EL::StatusCode::SUCCESS;
@@ -581,9 +597,6 @@ bool ElectronSelector :: executeSelection ( const xAOD::ElectronContainer* inEle
   int nPass(0); int nObj(0);
   static SG::AuxElement::Decorator< char > passSelDecor( "passSel" );
 
-  bool passCrackVetoCleaning = true;
-  const static SG::AuxElement::ConstAccessor<char> acc_CrackVetoCleaning("DFCommonCrackVetoCleaning");
-
   for ( auto el_itr : *inElectrons ) { // duplicated of basic loop
 
     // if only looking at a subset of electrons make sure all are decorated
@@ -605,22 +618,11 @@ bool ElectronSelector :: executeSelection ( const xAOD::ElectronContainer* inEle
 
     if ( passSel ) {
 
-      // check DFCommonCrackVetoCleaning flag for topocluster association bugfix
-      if (m_applyCrackVetoCleaning){
-        if ( !acc_CrackVetoCleaning( *el_itr ) ) passCrackVetoCleaning = false;
-      }
-
       nPass++;
       if ( m_createSelectedContainer ) {
         selectedElectrons->push_back( el_itr );
       }
     }
-  }
-
-  // Fix to EGamma Crack-Electron topocluster association bug for MET (PFlow)
-  // https://twiki.cern.ch/twiki/bin/view/AtlasProtected/HowToCleanJetsR21#Muons_Reconstructed_as_Jets_in_P
-  if (m_applyCrackVetoCleaning) {
-    if (!passCrackVetoCleaning) return false; // skip event
   }
 
   // for cutflow: make sure to count passed objects only once (i.e., this flag will be true only for nominal)
@@ -859,6 +861,19 @@ int ElectronSelector :: passCuts( const xAOD::Electron* electron, const xAOD::Ve
   }
   if (!m_isUsedBefore && m_useCutFlow) m_el_cutflowHist_1->Fill( m_el_cutflow_OQ_cut, 1 );
   if ( m_isUsedBefore && m_useCutFlow ) { m_el_cutflowHist_2->Fill( m_el_cutflow_OQ_cut, 1 ); }
+
+  // *********************************************************************************************************************************************************************
+  //
+  // Dead HV Cell veto (affects only 2016 data)
+  //
+  if ( m_applyDeadHVCellVeto ) {
+    if( !m_deadHVTool->accept(electron) ){
+      ANA_MSG_DEBUG( "Electron failed dead HV cell veto." );
+      return 0;
+    }
+  }
+  if (!m_isUsedBefore && m_useCutFlow) m_el_cutflowHist_1->Fill( m_el_cutflow_deadHVCell_cut, 1 );
+  if ( m_isUsedBefore && m_useCutFlow ) { m_el_cutflowHist_2->Fill( m_el_cutflow_deadHVCell_cut, 1 ); }
 
   // *********************************************************************************************************************************************************************
   //
