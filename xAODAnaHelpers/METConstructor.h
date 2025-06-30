@@ -12,6 +12,7 @@
 #include "METInterface/IMETMaker.h"
 #include "METInterface/IMETSystematicsTool.h"
 #include "METInterface/IMETSignificance.h"
+#include "METUtilities/METNetSig.h"
 
 #include "TauAnalysisTools/ITauSelectionTool.h"
 
@@ -120,6 +121,8 @@ private:
   asg::AnaToolHandle<IMETMaker> m_metmaker_handle{"met::METMaker/METMaker", this}; //!
   asg::AnaToolHandle<IMETSystematicsTool> m_metSyst_handle{"met::METSystematicsTool/METSystematicsTool", this}; //!
   asg::AnaToolHandle<IMETSignificance> m_metSignificance_handle{"met::METSignificance/METSignificance", this}; //!
+
+  met::METNetSig m_metNetSig{"met::METNetSig/METNetSig"}; //!
 
   asg::AnaToolHandle<TauAnalysisTools::ITauSelectionTool> m_tauSelTool_handle{"TauAnalysisTools::TauSelectionTool/TauSelectionTool", this}; //!
 
