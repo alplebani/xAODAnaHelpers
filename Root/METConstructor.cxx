@@ -494,32 +494,15 @@ EL::StatusCode METConstructor :: execute ()
 
      float met_x = 0, met_y = 0, sigma_x = 0, sigma_y = 0;
      if (systName == "") {
-       if (m_outputContainer.find("Tight") != std::string::npos) { // run it only for Tight so it runs only once
-        ANA_MSG_INFO("Evaluating NNMET using METNetSig for nominal");
-        ANA_CHECK(m_metNetSig.rebuildJetMET("RefJet", "SoftClus", "PVSoftTrk",newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut));
-        ANA_CHECK(m_metNetSig.evaluateMETNetSig(newMet.get(), met_x, met_y, sigma_x, sigma_y));   
+      if (m_addMETNetSig) {
+        if (m_outputContainer.find("Tight") != std::string::npos) { // run it only for Tight so it runs only once
+          ANA_MSG_INFO("Evaluating NNMET using METNetSig for nominal");
+          ANA_CHECK(m_metNetSig.rebuildJetMET("RefJet", "SoftClus", "PVSoftTrk",newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut));
+          ANA_CHECK(m_metNetSig.evaluateMETNetSig(newMet.get(), met_x, met_y, sigma_x, sigma_y));   
         }
-
+      }
      }
-
-
-    //  if (systName == "") {
-    //   ANA_MSG_DEBUG("Evaluating NNMET using METNetSig for nominal");
-    //   ANA_CHECK(m_metNetSig.rebuildJetMET("RefJet", "SoftClus", "PVSoftTrk",
-    //                                       newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut));
-    //   ANA_CHECK(m_metNetSig.evaluateNNMET("NNMET", newMet.get()));
-    //   const xAOD::MissingET* nnmet = (*newMet)["NNMET"];
-    //   if (nnmet && nnmet->isAvailable<float>("NN_SigmaX")) {
-    //     ANA_MSG_INFO("NNMET sigma_x: " << nnmet->auxdata<float>("NN_SigmaX"));
-    //     ANA_MSG_INFO("NNMET sigma_y: " << nnmet->auxdata<float>("NN_SigmaY"));
-    //   } else {
-    //     ANA_MSG_WARNING("NNMET or its auxdata not available!");
-    //   }
-    // }
-
     
-
-
      // the jet term and soft term(s) are built simultaneously using METMaker::rebuildJetMET(...) or METMaker::rebuildTrackMET(...)
      // to build MET using a calorimeter or track based jet term, respectively.
      // pass to rebuildJetMET calibrated jets (full container)
@@ -620,12 +603,14 @@ EL::StatusCode METConstructor :: execute ()
          met->auxdecor<double>("TauVarL") = m_metSignificance_handle->GetTermVarL(6);
          met->auxdecor<double>("TauVarT") = m_metSignificance_handle->GetTermVarT(6);
          if (systName == "") {
-          if (m_outputContainer.find("Tight") != std::string::npos){
-            met->auxdecor<double>("METNetSig_Met_x") = met_x;
-            met->auxdecor<double>("METNetSig_Met_y") = met_y;
-            met->auxdecor<double>("METNetSig_Sigma_x") = sigma_x;
-            met->auxdecor<double>("METNetSig_Sigma_y") = sigma_y;
-            ANA_MSG_DEBUG("METNetSig results: met = (" << met_x << ", " << met_y << "), sigma = (" << sigma_x << ", " << sigma_y << ")");
+          if (m_addMETNetSig){
+            if (m_outputContainer.find("Tight") != std::string::npos){
+              met->auxdecor<double>("METNetSig_Met_x") = met_x;
+              met->auxdecor<double>("METNetSig_Met_y") = met_y;
+              met->auxdecor<double>("METNetSig_Sigma_x") = sigma_x;
+              met->auxdecor<double>("METNetSig_Sigma_y") = sigma_y;
+              ANA_MSG_DEBUG("METNetSig results: met = (" << met_x << ", " << met_y << "), sigma = (" << sigma_x << ", " << sigma_y << ")");
+            }
           }
          }
        }
