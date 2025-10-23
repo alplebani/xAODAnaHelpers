@@ -188,6 +188,7 @@ EL::StatusCode BJetEfficiencyCorrector :: initialize ()
   ANA_CHECK( m_BJetSelectTool_handle.setProperty("JetAuthor",           m_jetAuthor));
   ANA_CHECK( m_BJetSelectTool_handle.setProperty("MinPt", m_minPt));
   ANA_CHECK( m_BJetSelectTool_handle.setProperty("ErrorOnTagWeightFailure", m_errorOnTagWeightFailure));
+  ANA_CHECK( m_BJetSelectTool_handle.setProperty("readFromBTaggingObject", m_readFromBTaggingObject));
   ANA_CHECK( m_BJetSelectTool_handle.setProperty("OutputLevel", msg().level() ));
   ANA_CHECK( m_BJetSelectTool_handle.retrieve());
   ANA_MSG_DEBUG("Retrieved tool: " << m_BJetSelectTool_handle);
@@ -204,6 +205,7 @@ EL::StatusCode BJetEfficiencyCorrector :: initialize ()
     ANA_CHECK( m_BJetEffSFTool_handle.setProperty("ScaleFactorFileName", m_corrFileName       ));
     ANA_CHECK( m_BJetEffSFTool_handle.setProperty("UseDevelopmentFile",  m_useDevelopmentFile ));
     ANA_CHECK( m_BJetEffSFTool_handle.setProperty("ConeFlavourLabel",    m_coneFlavourLabel   ));
+    ANA_CHECK( m_BJetEffSFTool_handle.setProperty("readFromBTaggingObject", m_readFromBTaggingObject));
     ANA_CHECK( m_BJetEffSFTool_handle.setProperty("OutputLevel", msg().level() ));
 
     if(!m_EfficiencyCalibration.empty()){
@@ -303,11 +305,8 @@ EL::StatusCode BJetEfficiencyCorrector :: initialize ()
             if(m_isRun3){
                 switch(sampleShowerType)
                 {
-                    case HelperFunctions::Pythia8_517:
-                        calibration="601398";
-                        break;
                     case HelperFunctions::Pythia8:
-                        calibration="601229";
+                        calibration="default";
                         break;
                     case HelperFunctions::Herwig7p2:
                         calibration="601414";
@@ -337,11 +336,8 @@ EL::StatusCode BJetEfficiencyCorrector :: initialize ()
 
                 switch(sampleShowerType)
                 {
-                    case HelperFunctions::Pythia8_517:
-                        calibration="410480";
-                        break;
                     case HelperFunctions::Pythia8:
-                        calibration="410470";
+                        calibration="default";
                         break;
                     case HelperFunctions::Herwig7p1:
                         calibration="411233";

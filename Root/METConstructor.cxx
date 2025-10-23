@@ -502,7 +502,6 @@ EL::StatusCode METConstructor :: execute ()
         }
       }
      }
-    
      // the jet term and soft term(s) are built simultaneously using METMaker::rebuildJetMET(...) or METMaker::rebuildTrackMET(...)
      // to build MET using a calorimeter or track based jet term, respectively.
      // pass to rebuildJetMET calibrated jets (full container)
