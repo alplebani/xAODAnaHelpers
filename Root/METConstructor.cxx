@@ -116,7 +116,8 @@ EL::StatusCode METConstructor :: initialize ()
 
   ANA_MSG_DEBUG( "Is MC? " << isMC() );
 
-  ANA_CHECK(m_metNetSig.initialize());
+  // ANA_CHECK(m_metNetSig.initialize());
+  ANA_CHECK(m_metNet.initialize());
 
   //////////// IMETMaker ////////////////
   if ( m_dofJVTCut ) {
@@ -491,14 +492,76 @@ EL::StatusCode METConstructor :: execute ()
        continue;
      }
      
+     // =============================================================================================
+     // METNET implementation starts here !! 
+     // =============================================================================================
 
      float met_x = 0, met_y = 0, sigma_x = 0, sigma_y = 0;
      if (systName == "") {
       if (m_addMETNetSig) {
         if (m_outputContainer.find("Tight") != std::string::npos) { // run it only for Tight so it runs only once
           ANA_MSG_INFO("Evaluating NNMET using METNetSig for nominal");
-          ANA_CHECK(m_metNetSig.rebuildJetMET("RefJet", "SoftClus", "PVSoftTrk",newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut));
-          ANA_CHECK(m_metNetSig.evaluateMETNetSig(newMet.get(), met_x, met_y, sigma_x, sigma_y));   
+          // ANA_CHECK(m_metNetSig.rebuildJetMET("RefJet", "SoftClus", "PVSoftTrk",newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut));
+          // ANA_CHECK(m_metNetSig.evaluateMETNetSig(newMet.get(), met_x, met_y, sigma_x, sigma_y));
+          
+          std::string softTerm = "PVSoftTrk";
+
+          // Rebuilding MET Electron term
+          std::string m_eleTerm = "el_term";
+          const xAOD::ElectronContainer* eleCont(0);
+          ConstDataVector<xAOD::ElectronContainer> metElectrons(SG::VIEW_ELEMENTS);
+          for (const auto& el : *eleCont) if (CutsMETMaker::accept(el)) metElectrons.push_back(el);
+          ATH_CHECK( m_metNet.rebuildMET(m_eleTerm, xAOD::Type::Electron, newMet.get(), metElectrons.asDataVector(), metHelper) );
+          
+          // Rebuilding MET Muon term
+          std::string m_muTerm = "mu_term";
+          const xAOD::MuonContainer* muonCont(0);
+          ConstDataVector<xAOD::MuonContainer> metMuons(SG::VIEW_ELEMENTS);
+          for (const auto& mu : *muonCont) if (CutsMETMaker::accept(mu)) metMuons.push_back(mu);
+          ATH_CHECK( m_metNet.rebuildMET(m_muTerm, xAOD::Type::Muon, newMet.get(), metMuons.asDataVector(), metHelper) );
+
+          // Rebuilding MET Photon term
+          std::string m_photonTerm = "photon_term";
+          const xAOD::PhotonContainer* phoCont(0);
+          ConstDataVector<xAOD::PhotonContainer> metPhotons(SG::VIEW_ELEMENTS);
+          for (const auto& ph : *phoCont) {
+
+            bool testPID = 0;
+            ph->passSelection(testPID, "Tight");
+            if( !testPID ) continue;
+
+            //ANA_MSG_VERBOSE("Photon author = " << ph->author() << " test " << (ph->author()&20));
+            if (!(ph->author() & 20)) continue;
+
+            if (ph->pt() < 25e3) continue;
+
+            float feta = fabs(ph->eta());
+            if (feta > 2.37 || (1.37 < feta && feta < 1.52)) continue;
+
+            metPhotons.push_back(ph);
+          }
+          ATH_CHECK( m_metNet.rebuildMET(m_photonTerm, xAOD::Type::Photon, newMet.get(), metPhotons.asDataVector(), metHelper) );
+              
+          // Rebuilding MET Tau term
+          std::string m_tauTerm = "tau_term";
+          const xAOD::TauJetContainer* tauCont(0);
+          ANA_CHECK( HelperFunctions::retrieve(tauCont, m_inputTaus + suffix, m_event, m_store, msg()));
+          ConstDataVector<xAOD::TauJetContainer> metTaus(SG::VIEW_ELEMENTS);
+          for (const auto& tau : *tauCont) {
+
+            if (tau->pt() < 20e3) continue;
+            if (fabs(tau->eta()) > 2.37) continue;
+            if (!m_tauSelTool_handle->accept(tau)) continue;
+
+            metTaus.push_back(tau);
+          }
+          ATH_CHECK( m_metNet.rebuildMET(m_tauTerm, xAOD::Type::Tau, newMet.get(), metTaus.asDataVector(), metHelper) );
+
+          // Rebuilding MET Jet term
+          std::string m_jetTerm = "jet_term";
+          ATH_CHECK( m_metNet.rebuildJetMET(m_jetTerm, softTerm, newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut) );
+          std::string m_metNet_Term = "met_net_final";
+          ANA_CHECK(m_metNet.evaluateNNMET(m_metNet_Term, newMet.get()));   
         }
       }
      }

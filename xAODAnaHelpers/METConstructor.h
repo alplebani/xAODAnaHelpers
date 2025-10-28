@@ -13,6 +13,7 @@
 #include "METInterface/IMETSystematicsTool.h"
 #include "METInterface/IMETSignificance.h"
 #include "METUtilities/METNetSig.h"
+#include "METUtilities/METNet.h"
 
 #include "TauAnalysisTools/ITauSelectionTool.h"
 
@@ -124,6 +125,7 @@ private:
   asg::AnaToolHandle<IMETSignificance> m_metSignificance_handle{"met::METSignificance/METSignificance", this}; //!
 
   met::METNetSig m_metNetSig{"met::METNetSig/METNetSig"}; //!
+  met::METNet m_metNet{"met::METNet/METNet"}; //!
 
   asg::AnaToolHandle<TauAnalysisTools::ITauSelectionTool> m_tauSelTool_handle{"TauAnalysisTools::TauSelectionTool/TauSelectionTool", this}; //!
 
