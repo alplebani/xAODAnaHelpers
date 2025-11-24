@@ -118,6 +118,7 @@ EL::StatusCode METConstructor :: initialize ()
 
   // ANA_CHECK(m_metNetSig.initialize());
   ANA_CHECK(m_metNet.initialize());
+  ANA_CHECK(m_metNetSig.initialize());
 
   //////////// IMETMaker ////////////////
   if ( m_dofJVTCut ) {
@@ -496,73 +497,147 @@ EL::StatusCode METConstructor :: execute ()
      // METNET implementation starts here !! 
      // =============================================================================================
 
-     float met_x = 0, met_y = 0, sigma_x = 0, sigma_y = 0;
+     float met_x = 0, met_y = 0, metnet_x = 0, metnet_y = 0, sigma_x = 0, sigma_y = 0;
      if (systName == "") {
       if (m_addMETNetSig) {
-        if (m_outputContainer.find("Tight") != std::string::npos) { // run it only for Tight so it runs only once
-          ANA_MSG_INFO("Evaluating NNMET using METNetSig for nominal");
-          // ANA_CHECK(m_metNetSig.rebuildJetMET("RefJet", "SoftClus", "PVSoftTrk",newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut));
-          // ANA_CHECK(m_metNetSig.evaluateMETNetSig(newMet.get(), met_x, met_y, sigma_x, sigma_y));
+          ANA_MSG_INFO("Evaluating NNMET using METNet for nominal");
           
           std::string softTerm = "PVSoftTrk";
-
+          
           // Rebuilding MET Electron term
           std::string m_eleTerm = "el_term";
-          const xAOD::ElectronContainer* eleCont(0);
-          ConstDataVector<xAOD::ElectronContainer> metElectrons(SG::VIEW_ELEMENTS);
-          for (const auto& el : *eleCont) if (CutsMETMaker::accept(el)) metElectrons.push_back(el);
-          ATH_CHECK( m_metNet.rebuildMET(m_eleTerm, xAOD::Type::Electron, newMet.get(), metElectrons.asDataVector(), metHelper) );
+          std::string eleSuffix = "";
+          if (sysElectronsNames && std::find(std::begin(*sysElectronsNames), std::end(*sysElectronsNames), systName) != std::end(*sysElectronsNames)) {
+            eleSuffix = systName;
+          }
+          const xAOD::ElectronContainer* eleCont = nullptr;
+          if ( m_store->contains<xAOD::ElectronContainer>(m_inputElectrons + eleSuffix) || m_event->contains<xAOD::ElectronContainer>(m_inputElectrons + eleSuffix) ) {
+            ANA_CHECK( HelperFunctions::retrieve(eleCont, m_inputElectrons + eleSuffix, m_event, m_store, msg()));
+            ANA_MSG_DEBUG("retrieving ele container " << m_inputElectrons + eleSuffix << " to be added to METNet");
+          } else {
+            ANA_MSG_DEBUG("container " << m_inputElectrons + eleSuffix << " not available upstream - skipping METNet electron term");
+          }
+
+          if (eleCont) {
+            ConstDataVector<xAOD::ElectronContainer> metNetElectrons(SG::VIEW_ELEMENTS);
+            for (const auto& elobj : *eleCont) if (CutsMETMaker::accept(elobj)) metNetElectrons.push_back(elobj);
+            ATH_CHECK( m_metNet.rebuildMET(m_eleTerm, xAOD::Type::Electron, newMet.get(), metNetElectrons.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+            ATH_CHECK( m_metNetSig.rebuildMET(m_eleTerm, xAOD::Type::Electron, newMet.get(), metNetElectrons.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+          } else {
+            ANA_MSG_DEBUG("Skipping METNet electron term because container is missing");
+          }
           
           // Rebuilding MET Muon term
           std::string m_muTerm = "mu_term";
-          const xAOD::MuonContainer* muonCont(0);
-          ConstDataVector<xAOD::MuonContainer> metMuons(SG::VIEW_ELEMENTS);
-          for (const auto& mu : *muonCont) if (CutsMETMaker::accept(mu)) metMuons.push_back(mu);
-          ATH_CHECK( m_metNet.rebuildMET(m_muTerm, xAOD::Type::Muon, newMet.get(), metMuons.asDataVector(), metHelper) );
+          std::string muSuffix = "";
+          if (sysMuonsNames && std::find(std::begin(*sysMuonsNames), std::end(*sysMuonsNames), systName) != std::end(*sysMuonsNames)) {
+            muSuffix = systName;
+          }
+          const xAOD::MuonContainer* muonCont = nullptr;
+          if ( m_store->contains<xAOD::MuonContainer>(m_inputMuons + muSuffix) || m_event->contains<xAOD::MuonContainer>(m_inputMuons + muSuffix) ) {
+            ANA_CHECK( HelperFunctions::retrieve(muonCont, m_inputMuons + muSuffix, m_event, m_store, msg()));
+            ANA_MSG_DEBUG("retrieving muon container " << m_inputMuons + muSuffix << " to be added to METNet");
+          } else {
+            ANA_MSG_DEBUG("container " << m_inputMuons + muSuffix << " not available upstream - skipping METNet muon term");
+          }
+
+          if (muonCont) {
+            ConstDataVector<xAOD::MuonContainer> metNetMuons(SG::VIEW_ELEMENTS);
+            for (const auto& muobj : *muonCont) if (CutsMETMaker::accept(muobj)) metNetMuons.push_back(muobj);
+            ATH_CHECK( m_metNet.rebuildMET(m_muTerm, xAOD::Type::Muon, newMet.get(), metNetMuons.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+            ATH_CHECK( m_metNetSig.rebuildMET(m_muTerm, xAOD::Type::Muon, newMet.get(), metNetMuons.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+          } else {
+            ANA_MSG_DEBUG("Skipping METNet muon term because container is missing");
+          }
 
           // Rebuilding MET Photon term
           std::string m_photonTerm = "photon_term";
-          const xAOD::PhotonContainer* phoCont(0);
-          ConstDataVector<xAOD::PhotonContainer> metPhotons(SG::VIEW_ELEMENTS);
-          for (const auto& ph : *phoCont) {
-
-            bool testPID = 0;
-            ph->passSelection(testPID, "Tight");
-            if( !testPID ) continue;
-
-            //ANA_MSG_VERBOSE("Photon author = " << ph->author() << " test " << (ph->author()&20));
-            if (!(ph->author() & 20)) continue;
-
-            if (ph->pt() < 25e3) continue;
-
-            float feta = fabs(ph->eta());
-            if (feta > 2.37 || (1.37 < feta && feta < 1.52)) continue;
-
-            metPhotons.push_back(ph);
+          std::string phoSuffix = "";
+          if (sysPhotonsNames && std::find(std::begin(*sysPhotonsNames), std::end(*sysPhotonsNames), systName) != std::end(*sysPhotonsNames)) {
+            phoSuffix = systName;
           }
-          ATH_CHECK( m_metNet.rebuildMET(m_photonTerm, xAOD::Type::Photon, newMet.get(), metPhotons.asDataVector(), metHelper) );
+          const xAOD::PhotonContainer* phoCont = nullptr;
+          if ( m_store->contains<xAOD::PhotonContainer>(m_inputPhotons + phoSuffix) || m_event->contains<xAOD::PhotonContainer>(m_inputPhotons + phoSuffix) ) {
+            ANA_CHECK( HelperFunctions::retrieve(phoCont, m_inputPhotons + phoSuffix, m_event, m_store, msg()));
+            ANA_MSG_DEBUG("retrieving pho container " << m_inputPhotons + phoSuffix << " to be added to METNet");
+          } else {
+            ANA_MSG_DEBUG("container " << m_inputPhotons + phoSuffix << " not available upstream - skipping METNet photon term");
+          }
+
+          if (phoCont) {
+            ConstDataVector<xAOD::PhotonContainer> metNetPhotons(SG::VIEW_ELEMENTS);
+            for (const auto& phobj : *phoCont) {
+
+              bool testPID = 0;
+              phobj->passSelection(testPID, "Tight");
+              if( !testPID ) continue;
+
+              //ANA_MSG_VERBOSE("Photon author = " << ph->author() << " test " << (ph->author()&20));
+              if (!(phobj->author() & 20)) continue;
+
+              if (phobj->pt() < 25e3) continue;
+
+              float feta = fabs(phobj->eta());
+              if (feta > 2.37 || (1.37 < feta && feta < 1.52)) continue;
+
+              metNetPhotons.push_back(phobj);
+            }
+            ATH_CHECK( m_metNet.rebuildMET(m_photonTerm, xAOD::Type::Photon, newMet.get(), metNetPhotons.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+            ATH_CHECK( m_metNetSig.rebuildMET(m_photonTerm, xAOD::Type::Photon, newMet.get(), metNetPhotons.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+
+          } else {
+            ANA_MSG_DEBUG("Skipping METNet photon term because container is missing");
+          }
               
           // Rebuilding MET Tau term
           std::string m_tauTerm = "tau_term";
-          const xAOD::TauJetContainer* tauCont(0);
-          ANA_CHECK( HelperFunctions::retrieve(tauCont, m_inputTaus + suffix, m_event, m_store, msg()));
-          ConstDataVector<xAOD::TauJetContainer> metTaus(SG::VIEW_ELEMENTS);
-          for (const auto& tau : *tauCont) {
-
-            if (tau->pt() < 20e3) continue;
-            if (fabs(tau->eta()) > 2.37) continue;
-            if (!m_tauSelTool_handle->accept(tau)) continue;
-
-            metTaus.push_back(tau);
+          std::string tauSuffix = "";
+          if (sysTausNames && std::find(std::begin(*sysTausNames), std::end(*sysTausNames), systName) != std::end(*sysTausNames)) {
+            tauSuffix = systName;
           }
-          ATH_CHECK( m_metNet.rebuildMET(m_tauTerm, xAOD::Type::Tau, newMet.get(), metTaus.asDataVector(), metHelper) );
+          const xAOD::TauJetContainer* tauCont = nullptr;
+          if ( m_store->contains<xAOD::TauJetContainer>(m_inputTaus + tauSuffix) || m_event->contains<xAOD::TauJetContainer>(m_inputTaus + tauSuffix) ) {
+            ANA_CHECK( HelperFunctions::retrieve(tauCont, m_inputTaus + tauSuffix, m_event, m_store, msg()));
+            ANA_MSG_DEBUG("retrieving tau container " << m_inputTaus + tauSuffix << " to be added to METNet");
+          } else {
+            ANA_MSG_DEBUG("container " << m_inputTaus + tauSuffix << " not available upstream - skipping METNet tau term");
+          }
+
+          if (tauCont) {
+            ConstDataVector<xAOD::TauJetContainer> metNetTaus(SG::VIEW_ELEMENTS);
+            for (const auto& tauobj : *tauCont) {
+
+              if (tauobj->pt() < 20e3) continue;
+              if (fabs(tauobj->eta()) > 2.37) continue;
+              if (!m_tauSelTool_handle->accept(tauobj)) continue;
+
+              metNetTaus.push_back(tauobj);
+            }
+            ATH_CHECK( m_metNet.rebuildMET(m_tauTerm, xAOD::Type::Tau, newMet.get(), metNetTaus.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+            ATH_CHECK( m_metNetSig.rebuildMET(m_tauTerm, xAOD::Type::Tau, newMet.get(), metNetTaus.asDataVector(), metHelper, MissingETBase::UsageHandler::PhysicsObject) );
+          } else {
+            ANA_MSG_DEBUG("Skipping METNet tau term because container is missing");
+          }
 
           // Rebuilding MET Jet term
           std::string m_jetTerm = "jet_term";
           ATH_CHECK( m_metNet.rebuildJetMET(m_jetTerm, softTerm, newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut) );
+          
+          // evaluating the METNet network
+          
           std::string m_metNet_Term = "met_net_final";
-          ANA_CHECK(m_metNet.evaluateNNMET(m_metNet_Term, newMet.get()));   
-        }
+          ANA_CHECK(m_metNet.evaluateNNMET(m_metNet_Term, newMet.get(), met_x, met_y)); 
+          ANA_MSG_INFO(" METNet x: " << met_x << " METNet y: " << met_y);
+
+          // Rebuilding the MET Jet term 
+          ATH_CHECK( m_metNetSig.rebuildJetMET(m_jetTerm, softTerm, newMet.get(), jetCont, coreMet, metHelper, m_doJVTCut) );
+
+          // evaluating the METNetSig network
+
+          ANA_CHECK(m_metNetSig.evaluateNNMETSig(m_metNet_Term, newMet.get(), metnet_x, metnet_y, sigma_x, sigma_y)); 
+          ANA_MSG_INFO(" METNetSig x: " << metnet_x << " METNetSig y: " << metnet_y << " Sigma x: " << sigma_x << " Sigma y: " << sigma_y);
+
+          
       }
      }
      // the jet term and soft term(s) are built simultaneously using METMaker::rebuildJetMET(...) or METMaker::rebuildTrackMET(...)
@@ -666,13 +741,12 @@ EL::StatusCode METConstructor :: execute ()
          met->auxdecor<double>("TauVarT") = m_metSignificance_handle->GetTermVarT(6);
          if (systName == "") {
           if (m_addMETNetSig){
-            if (m_outputContainer.find("Tight") != std::string::npos){
-              met->auxdecor<double>("METNetSig_Met_x") = met_x;
-              met->auxdecor<double>("METNetSig_Met_y") = met_y;
-              met->auxdecor<double>("METNetSig_Sigma_x") = sigma_x;
-              met->auxdecor<double>("METNetSig_Sigma_y") = sigma_y;
-              ANA_MSG_DEBUG("METNetSig results: met = (" << met_x << ", " << met_y << "), sigma = (" << sigma_x << ", " << sigma_y << ")");
-            }
+            met->auxdecor<float>("METNet_Met_x") = met_x;
+            met->auxdecor<float>("METNet_Met_y") = met_y;
+            met->auxdecor<float>("METNetSig_Met_x") = metnet_x;
+            met->auxdecor<float>("METNetSig_Met_y") = metnet_y;
+            met->auxdecor<double>("METNetSig_Sigma_x") = sigma_x;
+            met->auxdecor<double>("METNetSig_Sigma_y") = sigma_y;
           }
          }
        }
